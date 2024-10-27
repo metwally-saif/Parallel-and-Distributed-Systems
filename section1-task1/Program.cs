@@ -1,51 +1,51 @@
-﻿namespace section1_task1
+﻿using System.Diagnostics;
+
+namespace section1_task1
 {
     internal class Program
     {
-        public static void ParallelBubbleSortArray(int[] array)
+        public static void ParallelBubbleSortArray(int[] array, int numOfTasks)
         {
             int n = array.Length;
+
+            numOfTasks = Math.Min(numOfTasks, n / 2);
+            Console.WriteLine($"Using {numOfTasks} tasks");
+
             bool swapped;
 
+            // Optimize even/odd phases
             for (int i = 0; i < n - 1; i++)
             {
                 swapped = false;
 
-                // Create tasks for the two halves of the array
-                Task[] tasks =
-                [
-                    // First half
-                    Task.Run(() =>
+                // Parallelize the even phase
+                if (i % 2 == 0)
+                {
+                    Parallel.For(0, n / 2, new ParallelOptions { MaxDegreeOfParallelism = numOfTasks }, j =>
                     {
-                        for (int j = 0; j < n - i - 1; j += 2)
+                        int evenIndex = j * 2;
+                        if (evenIndex + 1 < n && array[evenIndex] > array[evenIndex + 1])
                         {
-                            if (j + 1 < n && array[j] > array[j + 1])
-                            {
-                                Swap(array, j, j + 1);
-                                swapped = true;
-                            }
+                            Swap(array, evenIndex, evenIndex + 1);
+                            swapped = true;
                         }
-                    }),
-                    // Second half
-                    Task.Run(() =>
+                    });
+                }
+                // Parallelize the odd phase
+                else
+                {
+                    Parallel.For(0, (n - 1) / 2, new ParallelOptions { MaxDegreeOfParallelism = numOfTasks }, j =>
                     {
-                        for (int j = 1; j < n - i - 1; j += 2)
+                        int oddIndex = j * 2 + 1;
+                        if (oddIndex + 1 < n && array[oddIndex] > array[oddIndex + 1])
                         {
-                            if (j + 1 < n && array[j] > array[j + 1])
-                            {
-                                Swap(array, j, j + 1);
-                                swapped = true;
-                            }
+                            Swap(array, oddIndex, oddIndex + 1);
+                            swapped = true;
                         }
-                    }),
-                ];
+                    });
+                }
 
-                // Wait for both tasks to complete
-                Task.WaitAll(tasks);
-
-                // If no elements were swapped, the array is sorted
-                if (!swapped)
-                    break;
+                if (!swapped) break;
             }
         }
 
@@ -54,14 +54,29 @@
             (array[j], array[i]) = (array[i], array[j]);
         }
 
+        private static int[] GenerateRandomArray(int size)
+        {
+            Random rand = new();
+            return Enumerable.Range(0, size).Select(_ => rand.Next(1, 100000)).ToArray();
+        }
+
+
         static void Main()
         {
-            int[] array = { 64, 34, 25, 12, 22, 11, 90 };
-            Console.WriteLine("Original array: " + string.Join(", ", array));
+            int arraySize = 100000;
+            int[] originalArray = GenerateRandomArray(arraySize);
 
-            ParallelBubbleSortArray(array);
+            foreach (int numThreads in new[] { 2, 3, 4, 6 })
+            {
+                // Copy the original array for each run
+                int[] arrayToSort = (int[])originalArray.Clone();
 
-            Console.WriteLine("Sorted array: " + string.Join(", ", array));
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                ParallelBubbleSortArray(arrayToSort, numThreads);
+                stopwatch.Stop();
+
+                Console.WriteLine($"Time taken with {numThreads} thread(s): {stopwatch.ElapsedMilliseconds} ms");
+            }
         }
     }
 }
